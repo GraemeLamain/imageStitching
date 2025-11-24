@@ -13,7 +13,7 @@ import cv2
 
 
 # Calculates Homography and maps points from srcs to dsts
-def homography2(src_pts, dst_pts):
+def homography(src_pts, dst_pts):
     N = src_pts.shape[0]
 
     H = []
@@ -124,7 +124,7 @@ def reconstruct(lp):
         img = cv2.add(img, lp[i])
     return img
 
-def stitch_img(img1, img2, pts1, pts2):
+def stitch_img(img1, img2, dst_pts, src_pts):
     PAD_Y = 400
     PAD_X = 400
 
@@ -132,18 +132,12 @@ def stitch_img(img1, img2, pts1, pts2):
     img1_padded = np.pad(img1, pad_width=((PAD_Y,PAD_Y), (PAD_X,PAD_X), (0,0)), mode='constant')
     
     # Shift reference points by padding amount
-    dst_pts_shifted = []
-    for p in pts1:
-        dst_pts_shifted.append([p[0]+PAD_X, p[1]+PAD_Y])
-
-    src_pts = pts2
-    dst_pts_shifted = np.float32(dst_pts_shifted)
-    src_pts = np.float32(src_pts)
+    dst_pts_shifted = np.copy(dst_pts)
+    dst_pts_shifted[:, 0] += PAD_X
+    dst_pts_shifted[:, 1] += PAD_Y
     
     # Calculate Homography
-    H = homography2(src_pts, dst_pts_shifted)
-    # print("PTS1: ", pts1)
-    # print("PTS2: ", pts2)
+    H = homography(src_pts, dst_pts_shifted)
     print("Homography: ", H)
     
     # Warp img2 into img1 space

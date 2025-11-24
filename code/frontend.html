@@ -1,71 +1,438 @@
-<!-- Faisal Qureshi with help from ChatGPT-->
-<!-- faisal.qureshi@ontariotechu.ca-->
-
-<!-- Edited and Modified by Graeme Lamain - 100873910-->
+<!-- Graeme Lamain with the help of Google Gemini -->
 
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Simple Browser Image Editor</title>
+<title>Multi-Image Stitching</title>
 <style>
-  :root { font-family: system-ui, sans-serif; }
-  body { margin: 0; background:#0f172a; color:#e5e7eb; }
-  .toolbar { display:flex; flex-wrap:wrap; gap:.5rem; padding:.75rem; align-items:center; background:#111827; position:sticky; top:0; }
-  .btn, input[type="range"], select { height:32px; }
-  .btn { background:#1f2937; color:#e5e7eb; border:1px solid #374151; border-radius:8px; padding:0 .7rem; cursor:pointer; }
+  :root { font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { margin: 0; background:#0f172a; color:#e5e7eb; height: 100vh; display: flex; flex-direction: column; }
+  
+  .main-container { flex: 1; display: flex; overflow: hidden; }
+  
+  /* Side bar and Gallery */
+  .sidebar {
+    width: 300px;
+    background: #111827;
+    border-right: 1px solid #374151;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  
+  .gallery-header { margin-bottom: 1rem; }
+  .gallery-title { font-weight: 600; color: #fff; margin-bottom: 0.5rem; display: block; }
+  .gallery-count { font-size: 0.8rem; color: #9ca3af; margin-bottom: 0.5rem; display: block; }
+  
+  .gallery-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .thumb-card {
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    padding: 0.5rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    transition: background 0.2s;
+  }
+  .thumb-card:hover { background: #374151; }
+  
+  .thumb-img {
+    width: 80px;
+    height: 60px;
+    object-fit: cover;
+    background: #000;
+    border-radius: 4px;
+    border: 1px solid #4b5563;
+  }
+  
+  .thumb-info {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .thumb-name {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #d1d5db;
+  }
+
+  .btn-delete {
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+  }
+  .btn-delete:hover { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+  
+  /* Workspace */
+  .workspace {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #0b1220;
+    overflow: hidden; /* Canvas container handles scrolling if needed */
+  }
+  
+  .toolbar {
+    display:flex; flex-wrap:wrap; gap:.5rem; padding:.75rem; 
+    align-items:center; background:#111827; 
+    border-bottom: 1px solid #374151;
+    flex-shrink: 0;
+  }
+  
+  /* Components */
+  .btn { 
+    height:36px; background:#1f2937; color:#e5e7eb; 
+    border:1px solid #374151; border-radius:6px; 
+    padding:0 1rem; cursor:pointer; font-size: 0.9rem;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #374151; }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
-  .sep { width:1px; height:28px; background:#374151; margin:0 .25rem; }
-  .label { font-size:12px; opacity:.9; margin-right:.25rem; }
-  .panel { padding:.5rem .75rem .75rem; background:#0b1220; border-top:1px solid #1f2937; display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
-  .slider { display:flex; align-items:center; gap:.5rem; }
-  #stage { height: calc(100vh - 120px); padding:.5rem; display:flex;}
-  #wrapper { flex:1; width:50%; height:100%; background:#000; border:1px solid #374151; border-radius:12px; overflow:hidden; position:relative; }
-  #canvas { display:block; width:100%; height:100%; touch-action:none; }
-  .mode { background:#374151; border-radius:8px; padding:2px; display:inline-flex; }
-  .mode .btn { border:none; background:transparent; }
-  .mode .btn.active { background:#2563eb; border-radius:6px; }
-  .hint { font-size:12px; opacity:.8; }
-  #stitch { height: calc(100vh - 120px); padding:.5rem; display:flex; flex-direction: column;}
-  #wrapperStitch { flex:1; width:100%; height:100%; background:#000; border:1px solid #374151; border-radius:12px; overflow:hidden; position:relative; }
+  
+  .btn-primary { background: #2563eb; border-color: #1d4ed8; color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  
+  .sep { width:1px; height:24px; background:#374151; margin:0 .25rem; }
+  
+  /* Result Area */
+  .result-area {
+    flex: 1;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .result-wrapper {
+    flex: 1;
+    background:#000;
+    border:1px solid #374151;
+    border-radius:8px;
+    overflow:hidden;
+    position:relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  canvas { display:block; touch-action:none; max-width: 100%; max-height: 100%; }
+  
+  h3 { margin: 0 0 0.5rem 0; font-size: 1.1rem; color: #9ca3af; }
 </style>
 </head>
 <body>
 
-<div class="toolbar">
-  <button class="btn" id="undoPoint">Undo Last Point</button>
-  <button class="btn" id="sendToPy">Stitch</button>
-  <!-- /ADDED -->
+<div class="main-container">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="gallery-header">
+      <span class="gallery-title">Images</span>
+      <span class="gallery-count" id="galleryCount">0 images loaded</span>
 
-  <div class="sep"></div>
-  <button class="btn" id="reset">Reset</button>
-  <button class="btn" id="savePng">Download PNG</button>
-  <!-- <span class="hint" style="margin-left:.5rem">Wheel = zoom · Drag in Pan mode = move</span> -->
+      <button class="btn btn-primary" style="width:100%" id="uploadBtn">
+        + Add Images
+      </button>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none"/>
+    </div>
+    <div class="gallery-grid" id="galleryGrid">
+      <!-- Thumbnails injected here -->
+      <div style="font-size:0.85rem; color:#6b7280; text-align:center; padding-top:2rem;">
+        No images added yet.
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Workspace -->
+  <div class="workspace">
+    <div class="toolbar">
+      <button class="btn btn-primary" id="sendToPy">Stitch Images</button>
+      <div class="sep"></div>
+      <button class="btn" id="savePng">Download Result</button>
+    </div>
+
+    <div class="result-area">
+      <h3>Stitched Result</h3>
+      <div class="result-wrapper" id="wrapperStitch">
+        <canvas id="canvasStitch"></canvas>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div id="stage">
-  <input type="file" id="upload1" accept="image/*" style="display:none"/>
-  <input type="file" id="upload2" accept="image/*" style="display:none"/>
-    
-  <div id="wrapper">
-    <button class="btn" id="loadBtn1">Load Image 1</button>
-    <canvas id="canvas1"></canvas>
-  </div>
-  <div id="wrapper">
-    <button class="btn" id="loadBtn2">Load Image 2</button> 
-    <canvas id="canvas2"></canvas>
-  </div>
-</div>
+<script>
+(() => {
+  const API_BASE = 'http://127.0.0.1:8000';   // Makes it so we can communicate with backend
 
-<div id="stitch">
-  <h3>Stitched Result</h3>
-  <div id="wrapperStitch">
-    <canvas id="canvasStitch"></canvas>
-  </div>
-</div>
+  const uploadBtn = document.getElementById('uploadBtn');
+  const fileInput = document.getElementById('fileInput');
+  const galleryCount = document.getElementById('galleryCount');
+  const galleryGrid = document.getElementById('galleryGrid');
 
-<script type="module" src="script.js"></script>
+  const canvasStitch  = document.getElementById('canvasStitch');
+  const ctxStitch     = canvasStitch.getContext('2d');
+  const wrapperStitch = document.getElementById('wrapperStitch');
+
+  const savePng     = document.getElementById('savePng');
+  const sendToPyBtn = document.getElementById('sendToPy');
+
+  let images = [];
+  let nextId = 1;
+  let imgStitched = null;
+
+  let scale = 1;
+  let offset = { x: 0, y: 0 };
+
+  let isDown = false;
+  let start = { x: 0, y: 0 };
+  let startOffset = { x: 0, y: 0 };
+
+  // Specify the canvas and wrapper you are working on then pass the draw function you want to run
+  function resizeCanvas(canvas, wrapper, drawFn) {
+    const r = wrapper.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = r.width * dpr;
+    canvas.height = r.height * dpr;
+
+    canvas.style.width = r.width + 'px';
+    canvas.style.height = r.height + 'px';
+    if (drawFn) drawFn();
+  }
+  new ResizeObserver(() => resizeCanvas(canvasStitch, wrapperStitch, drawStitched)).observe(wrapperStitch);
+
+
+  function fitToView(canvas, image) {
+    if(!image) return { s: 1, tx: 0, ty: 0 };
+    const dpr = window.devicePixelRatio || 1;
+    const cw = canvas.width / dpr;
+    const ch = canvas.height / dpr;
+
+    const s = Math.min(cw / image.naturalWidth, ch / image.naturalHeight) * 0.9;
+    const tx = (cw - image.naturalWidth * s) / 2;
+    const ty = (ch - image.naturalHeight * s) / 2;
+    return { s, tx, ty };
+  }
+
+  function drawStitched() {
+    ctxStitch.clearRect(0, 0, canvasStitch.width, canvasStitch.height);
+    ctxStitch.fillStyle = '#000';
+    ctxStitch.fillRect(0, 0, canvasStitch.width, canvasStitch.height);
+
+    if (!imgStitched) {
+      const dpr = window.devicePixelRatio || 1;
+      ctxStitch.save();
+      ctxStitch.scale(dpr, dpr);
+      ctxStitch.fillStyle = '#374151';
+      ctxStitch.font = '16px sans-serif';
+      ctxStitch.textAlign = 'center';
+      ctxStitch.textBaseline = 'middle';
+      ctxStitch.fillText('Stitched result will appear here', canvasStitch.width/dpr/2, canvasStitch.height/dpr/2);
+      ctxStitch.restore();
+      return;
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    ctxStitch.save();
+    ctxStitch.scale(dpr, dpr);
+    const {s, tx, ty} = fitToView(canvasStitch, imgStitched);
+
+    ctxStitch.drawImage(imgStitched, 0, 0, imgStitched.naturalWidth, imgStitched.naturalHeight, tx, ty, imgStitched.naturalWidth*s, imgStitched.naturalHeight*s);
+    ctxStitch.restore();
+  }
+
+  function renderGallery() {
+    galleryGrid.innerHTML = '';
+    galleryCount.textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded`;
+
+    if (images.length === 0) {
+      galleryGrid.innerHTML = '<div style="font-size:0.85rem; color:#6b7280; text-align:center; padding-top:2rem;">No images added yet.</div>';
+      return;
+    }
+
+    images.forEach(entry => {
+      const card = document.createElement('div');
+      card.className = 'thumb-card';
+      
+      const thumb = document.createElement('img');
+      thumb.className = 'thumb-img';
+      thumb.src = entry.src;
+      
+      const info = document.createElement('div');
+      info.className = 'thumb-info';
+      const name = document.createElement('div');
+      name.className = 'thumb-name';
+      name.textContent = entry.name;
+      name.title = entry.name; // Tooltip
+      info.appendChild(name);
+
+      const btnDel = document.createElement('button');
+      btnDel.className = 'btn-delete';
+      btnDel.innerHTML = '&times;';
+      btnDel.title = 'Remove Image';
+      btnDel.onclick = () => deleteImage(entry.id);
+
+      card.appendChild(thumb);
+      card.appendChild(info);
+      card.appendChild(btnDel);
+      galleryGrid.appendChild(card);
+    });
+  }
+
+  function deleteImage(id) {
+    const index = images.findIndex(img => img.id === id);
+    if (index !== -1) {
+      images.splice(index, 1);
+      renderGallery();
+    }
+  }
+
+  // ===== Interactions
+
+  uploadBtn.onclick = () => fileInput.click();
+
+  fileInput.onchange = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const im = new Image();
+        im.onload = () => {
+          const newImgEntry = {
+            id: nextId++,
+            src: evt.target.result,
+            name: file.name,
+            imgObj: im
+          };
+          images.push(newImgEntry);
+          renderGallery()
+        };
+        im.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    // Reset input
+    fileInput.value = '';
+  };
+
+
+  savePng.onclick = () => {
+    if (!imgStitched) return;
+    const a = document.createElement('a');
+    a.download = 'stitched.png';
+    a.href = canvasStitch.toDataURL('image/png');
+    a.click();
+  };
+
+  // Changed all the event listeners to only work for the after
+  // I could do this for canvas1 as well but it would just be copying code
+  // canvasStitch.addEventListener('wheel', (e) => {
+  //   if(!imgStitched) return;
+  //   e.preventDefault();
+  //   const delta = -Math.sign(e.deltaY) * 0.08;
+  //   const newScale = Math.max(0.05, Math.min(10, scale * (1 + delta)));
+
+  //   const rect = canvasStitch.getBoundingClientRect();
+  //   const dpr = window.devicePixelRatio || 1;
+  //   const mx = (e.clientX - rect.left) * dpr;
+  //   const my = (e.clientY - rect.top) * dpr;
+  //   const cx = canvasStitch.width/2 + offset.x;
+  //   const cy = canvasStitch.height/2 + offset.y;
+
+  //   const dx = mx -cx, dy = my - cy;
+  //   const ratio = newScale / scale;
+  //   offset.x -= dx * (ratio - 1);
+  //   offset.y -= dy * (ratio -1);
+  //   scale = newScale;
+  //   drawStitched();
+  // });
+
+  // canvasStitch.addEventListener('pointerdown', (e) => {
+  //   if (!imgStitched) return;
+  //   isDown = true;
+  //   const r = canvasStitch.getBoundingClientRect(); 
+  //   const dpr = window.devicePixelRatio || 1;
+  //   start.x = (e.clientX - r.left) * dpr;
+  //   start.y = (e.clientY - r.top) * dpr;
+  //   startOffset = { ...offset };
+  // });
+
+  // canvasStitch.addEventListener('pointermove', (e) => {
+  //   if (!isDown || !imgStitched) return;
+  //   const r = canvasStitch.getBoundingClientRect(); 
+  //   const dpr = window.devicePixelRatio || 1;
+  //   const x = (e.clientX - r.left) * dpr;
+  //   const y = (e.clientY - r.top) * dpr;
+
+  //   offset.x = startOffset.x + (x - start.x);
+  //   offset.y = startOffset.y + (y - start.y);
+  //   drawStitched();
+  // });
+  window.addEventListener('pointerup', () => { isDown = false; });
+
+  // ===== ADDED: Send canvas → Python → get processed PNG → draw back
+  async function sendToPython() {
+    if (images.length < 2) {
+      alert("Please upload at least 2 images to stitch.");
+      return;
+    }
+
+    sendToPyBtn.textContent = "Stitching...";
+    sendToPyBtn.disabled = true;
+
+    // Collect all base64 strings from uploaded images
+    const imageList = images.map(img => img.src);
+    console.log("Sending Request to Backend")
+    const res = await fetch(`${API_BASE}/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json"},
+      body: JSON.stringify({
+        images: imageList,
+        op: "stitch"
+      })
+    });
+    if (!res.ok) {
+      const msg = await res.text();
+      alert("Server error: " + msg);
+      return;
+    }
+    // Response is a blob (image)
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const processed = new Image();
+    processed.onload = () => {
+      imgStitched = processed;
+      resizeCanvas(canvasStitch, wrapperStitch, drawStitched);
+      URL.revokeObjectURL(url);
+    };
+    processed.src = url;
+  }
+  
+  sendToPyBtn.onclick = () => { sendToPython().catch(err => alert(err)); };
+
+  resizeCanvas(canvasStitch, wrapperStitch, drawStitched);
+})();
+
+
+</script>
 
 </body>
 </html>

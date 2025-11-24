@@ -4,37 +4,27 @@
 
 # Start backend
 # gunicorn -w 4 -b 127.0.0.1:8000 --timeout 1200 backend:app
-
-
-'''
-TODO:
-- Fix front end to let you input as many images as you want
-- Make front end prettier
-- Add feature detection and matching to automate the point selection process
-- (Optional) Make it so you can detect which image goes where without being given an order
-
-
-'''
+# I have just been doing python3 backend.py
 
 from flask import Flask, request, send_file, jsonify, make_response
 from flask_cors import CORS
-import io, base64, cv2
+import io
 import numpy as np
 from PIL import Image
-from matplotlib import pyplot as plt
 
 import stitching
 import features
 import utils
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 ALLOWED_OPS = {"none", "stitch"}
 
 @app.post("/process")
 def process():
     # Robust payload parsing
+    print("Request from frontend received.")
     ct = request.headers.get("Content-Type", "")
     payload = None
     if "application/json" in ct:
@@ -60,10 +50,6 @@ def process():
     print("Keys:", list(payload.keys()))
     print("op:", payload.get("op"))
 
-    if "image1" not in payload or "image2" not in payload:
-        print('- image not in payload')
-        return jsonify(error="missing 'image' field", got=list(payload.keys())), 400
-
     op = payload.get("op")
     if not op:
         print('- missing op field')
@@ -72,46 +58,43 @@ def process():
     if op not in ALLOWED_OPS:
         print('- unrecognized op')
         return jsonify(error=f"unknown op '{op}'", allowed=sorted(ALLOWED_OPS)), 400
+    
+    if "images" not in payload:
+        print('- images not in payload')
+        return jsonify(error="missing 'images' field", got=list(payload.keys())), 400
+    
+    image_data_list = payload.get("images", [])
 
-    # Decode image (unless we already handled file above)
-    if payload.get("image1") != "file":
-        print('- handling image1')
-        try:
-            img1 = utils.dataurl_to_numpy(payload["image1"])  # (H,W,C)
-        except Exception as e:
-            return jsonify(error=f"decode-failed: {e}"), 400
-        
-    if payload.get("image2") != "file":
-        print('- handling image2')
-        try:
-            img2 = utils.dataurl_to_numpy(payload["image2"])  # (H,W,C)
-        except Exception as e:
-            return jsonify(error=f"decode-failed: {e}"), 400
+    if not image_data_list or not isinstance(image_data_list, list):
+        return jsonify(error="missing or invalid 'images' list"), 400
+    
+    print(f"- received {len(image_data_list)} images for stitching")
 
-    print(f'- img1.shape={img1.shape}')
-    print(f'- img2.shape={img2.shape}')
+    imgs = []
+
+    try:
+        for idx, img_str in enumerate(image_data_list):
+            img_np = utils.dataurl_to_numpy(img_str)
+            imgs.append(img_np)
+    except Exception as e:
+        return jsonify(error=f"decode-failed at index {len(imgs)}: {e}"), 400
+    
+    if len(imgs) < 2:
+        return jsonify(error="Need at least 2 images to stitch"),  400
 
     # ---- simple ops (NumPy) ----
     try:
-        # Apply the painting stuff
+        out = None
         if op == "stitch":
-            pts_list1 = payload.get("points1","[]")
-            pts_list2 = payload.get("points2","[]")
+            # 1. Detect & Match features in first two images (SIFT/ORB)
+            print(f"Getting key points")
+            dts_pts, src_pts, matches = features.get_match_pairs(imgs[0], imgs[1])
+            print(f"Found {len(matches)} matches.")
 
-            if len(pts_list1) < 4 or len(pts_list2) < 4:
-                return jsonify(error="Need at least 4 points per image"), 400
-            
-            if len(pts_list1) != len(pts_list2):
-                return jsonify(error="Number of points must match"), 400
-            
-            print(f"Points1: {pts_list1}")
-            print(f"Points2: {pts_list2}")
+            # 3. Warp and stitch img2
+            warped_img = stitching.stitch_img(imgs[0], imgs[1], dts_pts, src_pts)
 
-            dst_pts = np.float32([[p['x'], p['y']] for p in pts_list1]) # Reference
-            src_pts = np.float32([[p['x'], p['y']] for p in pts_list2]) # To Warp
-            
-            warped_img = stitching.stitch_img(img1, img2, dst_pts, src_pts)
-
+            # 4. Repeat for all images (not done yet)
 
             final_result = np.zeros_like(warped_img)
 
@@ -148,4 +131,5 @@ def echo():
             "files": list(request.files.keys())}
 
 if __name__ == "__main__":
-    app.run("127.0.0.1", 8000, debug=True)
+    print("Starting Flask Server...")
+    app.run(host="0.0.0.0", port=8000, debug=True, use_reloader=False)
