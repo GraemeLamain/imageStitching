@@ -16,7 +16,7 @@ Course Project for my Computational Photography course at Ontario Tech Universit
 ## Features
 - Unordered Input: Capable of stitching images regardless of the order that they are uploaded in by utilizing a Graph-based BFS traversal on homographies.
 - SIFT Feature Detection: Uses Scale-Invarient Feature Transform to find unique keypoints in images (implemented with cv2 currently).
-- Custom RANSACL Implemented a manual vertion of Random Sample Consensus Loop in order to filter outliers.
+- Custom RANSAC: Implemented a manual vertion of Random Sample Consensus Loop in order to filter outliers.
 - Direct Linear Transform (DLT): Custom implementation of DLT algorithm to solve for the 3x3 Homography matrix (Ah = 0).
 - Vectorized Image Warping: Custom NumPy vectorized inverse warping function for high-performance image warping.
 - Canvas Calculation: Automatically calculates the boundaries for the final panorama to prevent cropping.
