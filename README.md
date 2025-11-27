@@ -87,6 +87,6 @@ Go to http://127.0.0.1:8001/frontend.html on your browser
 ## Acknowledgements
 - OpenCV: For SIFT implementation.
 - NumPy: For high-performance matrix operations.
-- Faisal Quereshi: Project guidance and course instructor.
+- Faisal Qureshi: Project guidance and course instructor.
 
 Created by Graeme Lamain
