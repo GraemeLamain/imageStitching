@@ -1,16 +1,14 @@
-# Faisal Qureshi with help from ChatGPT
-# faisal.qureshi@ontariotechu.ca
-# Edited and Modified by Graeme Lamain - 100873910
+# Main Backend Endpoint
+# Graeme Lamain - 100873910
 
-# Start backend
-# gunicorn -w 4 -b 127.0.0.1:8000 --timeout 1200 backend:app
-# I have just been doing python3 backend.py
+# Start backend  - gunicorn -w 4 -b 127.0.0.1:8000 --timeout 1200 backend:app
+# Start frontend - python3 -m http.server 8001
 
-from flask import Flask, request, send_file, jsonify, make_response
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 import io
 import numpy as np
-from PIL import Image
+from matplotlib import pyplot as plt
 
 import stitching
 import features
@@ -30,22 +28,11 @@ def process():
     if "application/json" in ct:
         print('- application/json')
         payload = request.get_json(silent=True) or {}
-    elif "multipart/form-data" in ct:
-        print('- multipart/form-data')
-        # in case you switch to FormData later
-        payload = request.form.to_dict()
-        if "image" not in payload and "file" in request.files:
-            print('- reading file')
-            # file path if you POST a file blob
-            f = request.files["file"]
-            payload["image"] = "file"
-            img = np.array(Image.open(f.stream))
     else:
         print('- json fallback')
         # try JSON as a fallback
         payload = request.get_json(silent=True) or {}
 
-    # Debug: print what we actually got
     print("CT:", ct)
     print("Keys:", list(payload.keys()))
     print("op:", payload.get("op"))
@@ -86,30 +73,40 @@ def process():
     try:
         out = None
         if op == "stitch":
-            # 1. Detect & Match features in first two images (SIFT/ORB)
-            print(f"Getting key points")
-            dts_pts, src_pts, matches = features.get_match_pairs(imgs[0], imgs[1])
-            print(f"Found {len(matches)} matches.")
+            print(f"========== Start ==========")
 
-            # 3. Warp and stitch img2
-            warped_img = stitching.stitch_img(imgs[0], imgs[1], dts_pts, src_pts)
+            # Get Key points for all N images
+            # Uses SIFT to detect points and get their descriptors
+            print(f"========== Key Points ==========")
+            key_points = features.get_key_points(imgs)
 
-            # 4. Repeat for all images (not done yet)
+            # Match features on each image to others
+            # Uses KNN matching to find the 'k' best matches for every feature in one image, in the other
+            # This will then check if the feature is unique (distance between best and second best is very high)
+            # Keeps the unique ones
+            print(f"========== Matching Points ==========")
+            valid_matches = features.get_matches(imgs, key_points)
 
-            final_result = np.zeros_like(warped_img)
+            # Compute all the homographies needed
+            print(f"========== Chain Homography ==========")
+            H_matrices = stitching.chain_homographies(valid_matches, key_points)
 
-            np.copyto(final_result, warped_img)
+            # Get Global Homographies: Chain all matricies to a single anchor image
+            print(f"========== Global Homography ==========")
+            global_H = stitching.global_homography(H_matrices, len(imgs))
             
-            # fig = plt.figure()
-            # fig.set_size_inches(25,10) 
-            # plt.imshow(final_result)
-            
-            # fig.savefig("stitch_result.png")
-            # --- F. Return Result ---
+            # Warp and paste
+            print(f"========== Warping ==========")
+            panorama = stitching.warp_and_stitch(global_H, key_points)
+
+            final_result = np.zeros_like(panorama)
+            np.copyto(final_result, panorama)
             out = final_result
-            
+
+            plt.imsave("demo.jpg", out)
+            print(f"========== End ==========")
         else:
-            out = img
+            out = None
     except Exception as e:
         return jsonify(error=f"op-failed: {e}"), 500
 

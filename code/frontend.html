@@ -199,7 +199,6 @@
   let scale = 1;
   let offset = { x: 0, y: 0 };
 
-  let isDown = false;
   let start = { x: 0, y: 0 };
   let startOffset = { x: 0, y: 0 };
 
@@ -342,52 +341,6 @@
     a.click();
   };
 
-  // Changed all the event listeners to only work for the after
-  // I could do this for canvas1 as well but it would just be copying code
-  // canvasStitch.addEventListener('wheel', (e) => {
-  //   if(!imgStitched) return;
-  //   e.preventDefault();
-  //   const delta = -Math.sign(e.deltaY) * 0.08;
-  //   const newScale = Math.max(0.05, Math.min(10, scale * (1 + delta)));
-
-  //   const rect = canvasStitch.getBoundingClientRect();
-  //   const dpr = window.devicePixelRatio || 1;
-  //   const mx = (e.clientX - rect.left) * dpr;
-  //   const my = (e.clientY - rect.top) * dpr;
-  //   const cx = canvasStitch.width/2 + offset.x;
-  //   const cy = canvasStitch.height/2 + offset.y;
-
-  //   const dx = mx -cx, dy = my - cy;
-  //   const ratio = newScale / scale;
-  //   offset.x -= dx * (ratio - 1);
-  //   offset.y -= dy * (ratio -1);
-  //   scale = newScale;
-  //   drawStitched();
-  // });
-
-  // canvasStitch.addEventListener('pointerdown', (e) => {
-  //   if (!imgStitched) return;
-  //   isDown = true;
-  //   const r = canvasStitch.getBoundingClientRect(); 
-  //   const dpr = window.devicePixelRatio || 1;
-  //   start.x = (e.clientX - r.left) * dpr;
-  //   start.y = (e.clientY - r.top) * dpr;
-  //   startOffset = { ...offset };
-  // });
-
-  // canvasStitch.addEventListener('pointermove', (e) => {
-  //   if (!isDown || !imgStitched) return;
-  //   const r = canvasStitch.getBoundingClientRect(); 
-  //   const dpr = window.devicePixelRatio || 1;
-  //   const x = (e.clientX - r.left) * dpr;
-  //   const y = (e.clientY - r.top) * dpr;
-
-  //   offset.x = startOffset.x + (x - start.x);
-  //   offset.y = startOffset.y + (y - start.y);
-  //   drawStitched();
-  // });
-  window.addEventListener('pointerup', () => { isDown = false; });
-
   // ===== ADDED: Send canvas → Python → get processed PNG → draw back
   async function sendToPython() {
     if (images.length < 2) {
@@ -412,6 +365,8 @@
     if (!res.ok) {
       const msg = await res.text();
       alert("Server error: " + msg);
+      sendToPyBtn.textContent = "Stitch Images";
+      sendToPyBtn.disabled = false;
       return;
     }
     // Response is a blob (image)
@@ -421,8 +376,11 @@
     processed.onload = () => {
       imgStitched = processed;
       resizeCanvas(canvasStitch, wrapperStitch, drawStitched);
+      sendToPyBtn.textContent = "Stitch Images";
+      sendToPyBtn.disabled = false;
       URL.revokeObjectURL(url);
     };
+
     processed.src = url;
   }
   
