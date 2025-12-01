@@ -1,4 +1,4 @@
-# Python Panorama Image Stitching
+# Automatic Panoramic Image Stitching
 
 Course Project for my Computational Photography course at Ontario Tech University. This program will allow you to stitch multiple unordered images into a high-resolution panorama. This project uses manual Computer Vision algorithsm for Homography estimation and RANSAC as well as Image Warping, rather than relying on libraries.
 
